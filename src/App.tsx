@@ -1,80 +1,195 @@
-import { FormEvent, MouseEvent, useState } from "react";
-import { Card, Col, Container, Form, Row, Table } from "react-bootstrap";
-import CustomButton from "./Components/CustomButton";
-import CustomInput from "./Components/CustomInput";
-import { useAppDispatch, useAppSelector } from './app/hooks';
-import { addField, setData } from "./features/form/form-slice";
-import { Result } from "./Components/Result";
+import {
+	DragDropContext,
+	Draggable,
+	DropResult,
+	Droppable,
+} from "react-beautiful-dnd";
+import {
+	Button,
+	Card,
+	Col,
+	Container,
+	FloatingLabel,
+	Form,
+	Row,
+} from "react-bootstrap";
+import { useAppDispatch, useAppSelector } from "./app/hooks";
+import { addField, addTodo, moveField } from "./features/form/form-slice";
+import { ChangeEvent, useState } from "react";
+
+type sectionType = {
+	id: string;
+	name: string;
+	items: {
+		id: string;
+		name: string;
+	}[];
+};
 
 function App() {
-  const data = useAppSelector((state) => state.form.formData);
-  const dispatch = useAppDispatch();
-  const [visible, setVisible] = useState(false);
-  const [lastCord, setLastCord] =   useState({x: 0, y: 0})
+	const sections = useAppSelector((state) => state.form.sections);
+	const items = useAppSelector((state) => state.form.items);
+	const dispatch = useAppDispatch();
+	const [input, setInput] = useState("");
+	const [disable, setDisable] = useState(true);
 
-  const handleDrag = (e: MouseEvent<HTMLElement>) => {
-    if (!e.clientX && !e.clientY) {
-      if (lastCord.y > window.innerHeight/4 && lastCord.x > window.innerWidth/4 &&
-      lastCord.y < (window.innerHeight/4)*3 && lastCord.x < (window.innerWidth/4)*3) {
-        dispatch(addField());
-      }
-      setVisible(false);
-      return;
-    }
-    setLastCord({x: e.clientX, y: e.clientY});
-    setVisible(true);
-  }
+	const onButtonClick = (name: string) => {
+		if (name === "todo") {
+			dispatch(addTodo(input));
+		} else {
+			dispatch(addField(input));
+		}
+		setInput("");
+		setDisable(true)
+	};
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-  }
+	const handleDragAndDrop = (result: DropResult) => {
+		const { source, destination } = result;
 
-  return (
-    <Container fluid className="py-3" style={{maxHeight: '100svh'}}>
-      {
-      visible &&
-        <span className="position-absolute">
-          <span>ADD NEW SECTION</span>
-        </span>
-      }
-      <Row>
-        <Col md={6}>
-          <Card className="shadow" >
-            <Card.Body>
-              <Form onSubmit={handleSubmit}>
-                <h3>Form</h3>
-                <h6 className="gap-2 d-flex flex-wrap">
-                {
-                  data.map((_, idx) => {
-                    return <CustomButton key={`btn_21_${idx}`} value={`Section ${idx+1}`} icon={false} />;
-                  })
-                }
-                <CustomButton draggable onDrag={handleDrag} value="ADD" onClick={()=>{dispatch(addField())}} />
-                </h6>
-                <hr />
-                {
-                  data.map((ele, idx) => {
-                    return (
-                      <Row key={`sec_123_${idx}`} className="mt-3">
-                        <div className="h6">{`Section ${idx+1}`}</div>
-                        {
-                          Object.keys(ele).map((name, id)=> <Col md={6}><CustomInput key={`input-${id}`} name={name} value={ele[name]} onChange={(e) => dispatch(setData({idx, name, value: e.target.value}))}/></Col>)
-                        }
-                      </Row>
-                    )
-                  })
-                }
-                <CustomButton type="submit" value="Submit" icon={false}/>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col>
-          <Result />
-        </Col>
-      </Row>
-    </Container>
-  );
+		if (!destination) return;
+
+		if (
+			source.droppableId === destination.droppableId &&
+			source.index === destination.index
+		)
+			return;
+
+		console.log(result);
+
+		dispatch(moveField(result));
+	};
+
+	return (
+		<>
+			<Container>
+				<Card
+					className='m-auto mt-3 shadow border-0'
+					style={{ width: "min(90%, 700px)", minHeight: 'calc(100svh - 32px)' }}>
+					<Card.Body>
+						<div className='h3 text-center lh-sm pb-2'>Drag & Drop</div>
+						<Row className='my-3'>
+							<Col>
+								<FloatingLabel
+									controlId='floatingInput'
+									label='Enter something...'>
+									<Form.Control
+										type='text'
+										placeholder='Enter something...'
+										autoComplete='off'
+										onChange={(e: ChangeEvent<HTMLInputElement>) => {
+											setInput(e.target.value);
+											if (e.target.value === "") setDisable(true);
+											else setDisable(false);
+										}}
+										value={input}
+										maxLength={70}
+									/>
+								</FloatingLabel>
+							</Col>
+							<Col xs={5} className='d-flex justify-content-evenly'>
+								<Button
+									onClick={() => onButtonClick("section")}
+									className='fw-bold px-3'
+									disabled={disable}>
+									Add Section
+								</Button>
+								<Button
+									onClick={() => onButtonClick("todo")}
+									className='fw-bold px-3'
+									disabled={disable}>
+									Add Todo
+								</Button>
+							</Col>
+						</Row>
+						<DragDropContext onDragEnd={handleDragAndDrop}>
+							<Droppable droppableId='Items'>
+								{(provided) => (
+									<div
+										{...provided.droppableProps}
+										ref={provided.innerRef}
+										className='d-flex gap-2 flex-wrap'>
+										{items.map((element, idx) => (
+											<Draggable
+												draggableId={element.id}
+												index={idx}
+												key={element.id}>
+												{(provided) => (
+													<Card
+														{...provided.dragHandleProps}
+														{...provided.draggableProps}
+														ref={provided.innerRef}
+														className='shadow-sm'>
+														<Card.Body className='p-2'>
+															{element.name}
+														</Card.Body>
+													</Card>
+												)}
+											</Draggable>
+										))}
+										{provided.placeholder}
+									</div>
+								)}
+							</Droppable>
+							<Droppable droppableId='Sections' type='group'>
+								{(provided) => (
+									<div
+										{...provided.droppableProps}
+										ref={provided.innerRef}
+										className='mt-3'>
+										{sections.map((element, idx) => (
+											<Draggable
+												draggableId={element.id}
+												index={idx}
+												key={element.id}>
+												{(provided) => (
+													<Card
+														{...provided.dragHandleProps}
+														{...provided.draggableProps}
+														ref={provided.innerRef}
+														className='border-black text-capitalize mt-3 shadow-sm'>
+														<Card.Body className="position-relative">
+															<Section {...element} />
+														</Card.Body>
+													</Card>
+												)}
+											</Draggable>
+										))}
+										{provided.placeholder}
+									</div>
+								)}
+							</Droppable>
+						</DragDropContext>
+					</Card.Body>
+				</Card>
+			</Container>
+		</>
+	);
 }
+
+const Section = ({ name, id, items }: sectionType) => {
+	return (
+		<Droppable droppableId={id}>
+			{(provided) => (
+				<div {...provided.droppableProps} ref={provided.innerRef}>
+					<div className='h5 bg-white px-2 rounded-pill position-absolute'>{name}</div>
+					{items.map((item, index) => (
+						<Draggable draggableId={item.id} index={index} key={item.id}>
+							{(provided) => (
+								<Card
+									className='mt-2 p-2 border rounded shadow-sm'
+									{...provided.dragHandleProps}
+									{...provided.draggableProps}
+									ref={provided.innerRef}>
+									<div className='fs-6'>{item.name}</div>
+								</Card>
+							)}
+						</Draggable>
+					))}
+					{provided.placeholder}
+				</div>
+			)}
+		</Droppable>
+	);
+};
 
 export default App;
